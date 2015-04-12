@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <pthread.h>
 #include <curses.h>
+#include <math.h>
 
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
@@ -241,6 +242,8 @@ void setFrequency(int Channel, double Frequency)
 	writeRegister(Channel, 0x08, FrequencyValue & 0xFF);
 
 	Config.LoRaDevices[Channel].activeFreq = Frequency;
+
+	ChannelPrintf(Channel, 1, 11, "%8.4fMHz", Frequency);
 }
 
 void setLoRaMode(int Channel)
@@ -342,6 +345,7 @@ int receiveMessage(int Channel, unsigned char *message)
 {
 	int i, Bytes, currentAddr, x;
 	unsigned char data[257];
+	double FreqError;
 
 	Bytes = 0;
 	
@@ -371,7 +375,8 @@ int receiveMessage(int Channel, unsigned char *message)
 		// LogMessage("RSSI = %d\n", readRegister(Channel, REG_PACKET_RSSI) - 137);
 		ChannelPrintf(Channel,  9, 1, "Packet   SNR = %4d   ", (char)(readRegister(Channel, REG_PACKET_SNR)) / 4);
 		ChannelPrintf(Channel, 10, 1, "Packet  RSSI = %4d   ", readRegister(Channel, REG_PACKET_RSSI) - 157);
-		ChannelPrintf(Channel, 11, 1, "Freq. Error = %4.1lfkHz ", FrequencyError(Channel) / 1000);
+		FreqError = FrequencyError(Channel) / 1000;
+		ChannelPrintf(Channel, 11, 1, "Freq. Error = %5.1lfkHz ", FreqError);
 
 		writeRegister(Channel, REG_FIFO_ADDR_PTR, currentAddr);   
 		
@@ -394,6 +399,12 @@ int receiveMessage(int Channel, unsigned char *message)
 		// writeRegister(Channel, REG_FIFO_ADDR_PTR, 0);  // currentAddr);   
 		// writeRegister(Channel, REG_FIFO_ADDR_PTR, 0);
 		// writeRegister(Channel, REG_FIFO_RX_BASE_AD, 0);
+		if(Config.LoRaDevices[Channel].AFC && fabs(FreqError)>0.1)
+		{
+			setMode(Channel, RF96_MODE_SLEEP);
+			setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq + FreqError/1000);
+			startReceiving(Channel);
+		}
 	} 
 
 	// Clear all flags
@@ -626,6 +637,7 @@ void LoadConfigFile()
 			Config.LoRaDevices[Channel].Bandwidth = BANDWIDTH_20K8;
 			Config.LoRaDevices[Channel].SpreadingFactor = SPREADING_11;
 			Config.LoRaDevices[Channel].LowDataRateOptimize = 0x00;		
+			Config.LoRaDevices[Channel].AFC = FALSE;		
 			
 			LogMessage("Channel %d frequency set to %s\n", Channel, Config.LoRaDevices[Channel].Frequency);
 			Config.LoRaDevices[Channel].InUse = 1;
@@ -643,7 +655,8 @@ void LoadConfigFile()
 			sprintf(Keyword, "mode_%d", Channel);
 			Config.LoRaDevices[Channel].SpeedMode = ReadInteger(fp, Keyword, 0, 0);
 			// Config.LoRaDevices[Channel].PayloadLength = Config.LoRaDevices[Channel].SpeedMode == 0 ? 80 : 255;
-			ChannelPrintf(Channel, 1, 1, "Channel %d %sMHz %s mode", Channel, Config.LoRaDevices[Channel].Frequency, Modes[Config.LoRaDevices[Channel].SpeedMode]);
+			ChannelPrintf(Channel, 1, 1, "Channel %d", Channel);
+			ChannelPrintf(Channel, 1, 23, "%s mode", Modes[Config.LoRaDevices[Channel].SpeedMode]);
 
 			if (Config.LoRaDevices[Channel].SpeedMode == 4)
 			{
@@ -782,6 +795,16 @@ void LoadConfigFile()
 				if (Temp)
 				{
 					Config.LoRaDevices[Channel].LowDataRateOptimize = 0x08;
+				}
+			}
+
+			sprintf(Keyword, "AFC_%d", Channel);
+			if (ReadBoolean(fp, Keyword, 0, &Temp))
+			{
+				if (Temp)
+				{
+					Config.LoRaDevices[Channel].AFC = TRUE;
+					ChannelPrintf(Channel, 11, 24, "AFC");
 				}
 			}
 		}
@@ -974,19 +997,23 @@ uint16_t CRC16(unsigned char *ptr)
 
 void ProcessKeyPress(int ch)
 {
+	int Channel = 0;
+
 	switch(ch)
 	{
+		case 'f':
+			Config.LoRaDevices[Channel].AFC = !Config.LoRaDevices[Channel].AFC;
+			ChannelPrintf(Channel, 11, 24, "%s", Config.LoRaDevices[Channel].AFC?"AFC":"   ");
+			break;
 		case 'j':
-			setMode(0, RF96_MODE_SLEEP);
-			setFrequency(0, Config.LoRaDevices[0].activeFreq + 0.001);
-			LogMessage("Frequency 0 = %f\n", Config.LoRaDevices[0].activeFreq);
-			startReceiving(0);
+			setMode(Channel, RF96_MODE_SLEEP);
+			setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq + 0.001);
+			startReceiving(Channel);
 			break;
 		case 'k':
-			setMode(0, RF96_MODE_SLEEP);
-			setFrequency(0, Config.LoRaDevices[0].activeFreq - 0.001);
-			LogMessage("Frequency 0 = %f\n", Config.LoRaDevices[0].activeFreq);
-			startReceiving(0);
+			setMode(Channel, RF96_MODE_SLEEP);
+			setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq - 0.001);
+			startReceiving(Channel);
 			break;
 		case 'q':
 			run = FALSE;

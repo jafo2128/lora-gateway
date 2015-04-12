@@ -7,6 +7,7 @@ struct TLoRaDevice
 	int DIO5;
 	char Frequency[16];
 	double activeFreq;
+	bool AFC;
 	int SpeedMode;
 	int PayloadLength;
 	int ImplicitOrExplicit;
