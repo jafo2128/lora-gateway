@@ -25,6 +25,7 @@
 #include "ssdv.h"
 #include "global.h"
 
+bool run = TRUE;
 
 // RFM98
 uint8_t currentMode = 0x81;
@@ -229,11 +230,22 @@ void setMode(int Channel, uint8_t newMode)
   return;
 }
 
+void setFrequency(int Channel, double Frequency)
+{
+	unsigned long FrequencyValue;
+
+	FrequencyValue = (unsigned long)(Frequency * 7110656 / 434);
+	// LogMessage("FrequencyValue = %06Xh\n", FrequencyValue);
+	writeRegister(Channel, 0x06, (FrequencyValue >> 16) & 0xFF);		// Set frequency
+	writeRegister(Channel, 0x07, (FrequencyValue >> 8) & 0xFF);
+	writeRegister(Channel, 0x08, FrequencyValue & 0xFF);
+
+	Config.LoRaDevices[Channel].activeFreq = Frequency;
+}
 
 void setLoRaMode(int Channel)
 {
 	double Frequency;
-	unsigned long FrequencyValue;
 
 	// LogMessage("Setting LoRa Mode\n");
 	setMode(Channel, RF96_MODE_SLEEP);
@@ -243,11 +255,7 @@ void setLoRaMode(int Channel)
   
 	if (sscanf(Config.LoRaDevices[Channel].Frequency, "%lf", &Frequency))
 	{
-		FrequencyValue = (unsigned long)(Frequency * 7110656 / 434);
-		// LogMessage("FrequencyValue = %06Xh\n", FrequencyValue);
-		writeRegister(Channel, 0x06, (FrequencyValue >> 16) & 0xFF);		// Set frequency
-		writeRegister(Channel, 0x07, (FrequencyValue >> 8) & 0xFF);
-		writeRegister(Channel, 0x08, FrequencyValue & 0xFF);
+		setFrequency(Channel, Frequency);
 	}
 
 	// LogMessage("Mode = %d\n", readRegister(Channel, REG_OPMODE));
@@ -964,17 +972,45 @@ uint16_t CRC16(unsigned char *ptr)
 	return CRC;
 }
 
+void ProcessKeyPress(int ch)
+{
+	switch(ch)
+	{
+		case 'j':
+			setMode(0, RF96_MODE_SLEEP);
+			setFrequency(0, Config.LoRaDevices[0].activeFreq + 0.001);
+			LogMessage("Frequency 0 = %f\n", Config.LoRaDevices[0].activeFreq);
+			startReceiving(0);
+			break;
+		case 'k':
+			setMode(0, RF96_MODE_SLEEP);
+			setFrequency(0, Config.LoRaDevices[0].activeFreq - 0.001);
+			LogMessage("Frequency 0 = %f\n", Config.LoRaDevices[0].activeFreq);
+			startReceiving(0);
+			break;
+		case 'q':
+			run = FALSE;
+			break;
+		default:
+			LogMessage("KeyPress %d\n", ch);
+			return;
+	}
+}
 
 int main(int argc, char **argv)
 {
 	unsigned char Message[257], Command[200], Telemetry[100], filename[100], *dest, *src;
-	int Bytes, ImageNumber, PreviousImageNumber, PacketNumber, PreviousPacketNumber;
+	int Bytes, ImageNumber, PreviousImageNumber, PacketNumber, PreviousPacketNumber, ch;
 	uint32_t CallsignCode, PreviousCallsignCode, LoopCount[2];
 	pthread_t /* CurlThread, */ SSDVThread;
 	FILE *fp;
 	WINDOW * mainwin;
 		
 	mainwin = InitDisplay();
+	noecho();
+	cbreak();
+	nodelay(stdscr, TRUE);
+	keypad(stdscr, TRUE);
 
 	// LogMessage("**** LoRa Gateway by daveake ****\n");
 
@@ -1035,7 +1071,7 @@ int main(int argc, char **argv)
 	}
 	
 	
-	while (1)
+	while (run)
 	{
 		int Channel;
 		
@@ -1234,6 +1270,9 @@ int main(int argc, char **argv)
 					if (Config.LoRaDevices[Channel].LastPacketAt > 0)
 					{
 						ChannelPrintf(Channel, 5, 1, "%us since last packet   ", (unsigned int)(time(NULL) - Config.LoRaDevices[Channel].LastPacketAt));
+					}
+					if ((ch = getch()) != ERR) {
+						ProcessKeyPress(ch);
 					}
 				}
 			}
