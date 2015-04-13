@@ -72,6 +72,8 @@ The options are:
 	tracker=<callsign>.  This is whatever callsign you want to appear as on the tracking map and/or SSDV page.
 	
 	frequency_<n>=<freq in MHz>.  This sets the frequency for LoRa module <n> (0 for first, 1 for second).  e.g. frequency_0=434.450
+
+	AFC_<n>=<Y/N>.  Enables or disables automatic frequency control (retunes by the frequency error of last received packet).
 	
 	mode_<n>=<mode>.  Sets the "mode" for the selected LoRa module.  This offers a simple way of setting the various
 					LoRa parameters (SF etc.) in one go.  The modes are:
@@ -99,4 +101,20 @@ Run with:
 
 	sudo ./gateway
 		
+
+Interactive Features
+====================
+
+The following key presses are available. Where appropriate unshifted keys affect Channel 0 and shifted keys affect Channel 1.
+
+	q	quit
+
+	a	increase frequency by 100kHz
+	z	decrease frequency by 100kHz
+	s	increase frequency by 10kHz
+	x	decrease frequency by 10kHz
+	d	increase frequency by 1kHz
+	c	decrease frequency by 1kHz
+
+	f	toggle AFC
 
