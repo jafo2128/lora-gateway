@@ -292,6 +292,13 @@ void startReceiving(int Channel)
 	setMode(Channel, RF96_MODE_RX_CONTINUOUS); 
 }
 
+void ReTune(int Channel, double FreqShift)
+{
+	setMode(Channel, RF96_MODE_SLEEP);
+	setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq + FreqShift);
+	startReceiving(Channel);
+}
+
 void setupRFM98(int Channel)
 {
 	if (Config.LoRaDevices[Channel].InUse)
@@ -401,9 +408,7 @@ int receiveMessage(int Channel, unsigned char *message)
 		// writeRegister(Channel, REG_FIFO_RX_BASE_AD, 0);
 		if(Config.LoRaDevices[Channel].AFC && fabs(FreqError)>0.1)
 		{
-			setMode(Channel, RF96_MODE_SLEEP);
-			setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq + FreqError/1000);
-			startReceiving(Channel);
+			ReTune(Channel, FreqError/1000);
 		}
 	} 
 
@@ -1005,21 +1010,29 @@ void ProcessKeyPress(int ch)
 			Config.LoRaDevices[Channel].AFC = !Config.LoRaDevices[Channel].AFC;
 			ChannelPrintf(Channel, 11, 24, "%s", Config.LoRaDevices[Channel].AFC?"AFC":"   ");
 			break;
-		case 'j':
-			setMode(Channel, RF96_MODE_SLEEP);
-			setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq + 0.001);
-			startReceiving(Channel);
+		case 'a':
+			ReTune(Channel, 0.1);
 			break;
-		case 'k':
-			setMode(Channel, RF96_MODE_SLEEP);
-			setFrequency(Channel, Config.LoRaDevices[Channel].activeFreq - 0.001);
-			startReceiving(Channel);
+		case 'z':
+			ReTune(Channel, -0.1);
+			break;
+		case 's':
+			ReTune(Channel, 0.01);
+			break;
+		case 'x':
+			ReTune(Channel, -0.01);
+			break;
+		case 'd':
+			ReTune(Channel, 0.001);
+			break;
+		case 'c':
+			ReTune(Channel, -0.001);
 			break;
 		case 'q':
 			run = FALSE;
 			break;
 		default:
-			LogMessage("KeyPress %d\n", ch);
+			//LogMessage("KeyPress %d\n", ch);
 			return;
 	}
 }
