@@ -1004,6 +1004,26 @@ void ProcessKeyPress(int ch)
 {
 	int Channel = 0;
 
+	/* shifted keys act on channel 1 */
+	if (ch >= 'A' && ch <= 'Z')
+	{
+		Channel = 1;
+		/* change from upper to lower case */
+		ch += ('a' - 'A');
+	}
+
+	if (ch == 'q')
+	{
+		run = FALSE;
+		return;
+	}
+
+	/* ignore if channel is not in use */
+	if (!Config.LoRaDevices[Channel].InUse)
+	{
+		return;
+	}
+
 	switch(ch)
 	{
 		case 'f':
@@ -1027,9 +1047,6 @@ void ProcessKeyPress(int ch)
 			break;
 		case 'c':
 			ReTune(Channel, -0.001);
-			break;
-		case 'q':
-			run = FALSE;
 			break;
 		default:
 			//LogMessage("KeyPress %d\n", ch);
